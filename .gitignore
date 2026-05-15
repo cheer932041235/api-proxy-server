@@ -1,0 +1,10 @@
+.env
+logs/
+__pycache__/
+*.pyc
+.venv/
+gateway/secrets.json
+gateway/__pycache__/
+gateway/tests/__pycache__/
+aiclient2api/config.json
+aiclient2api/provider_pools.json
