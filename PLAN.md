@@ -22,13 +22,14 @@
 | AIClient-2-API | 3000 | ✅ 运行中 | 免费 OAuth 账号池（Gemini/Kiro/Codex） |
 | New-API | 3001 | ✅ 运行中 | API 管理/分发/计费中转站（MikuAPI 同款） |
 | chatgpt2api | 3002 | ✅ 运行中 | ChatGPT Plus/Pro 反代（文本 + GPT-Image-2 出图） |
+| AI Studio 配图 | 8088 | ✅ 运行中 | GPT-Image-2 双号池并行出图 Web 工具 |
 
 ### 账号资产
 
 | 编号 | 邮箱 | 等级 | 号池状态 | 备注 |
 |------|------|------|----------|------|
-| A | 932041235@qq.com | Plus | ✅ 已导入 | 首个导入的账号 |
-| B | cheershuyang@163.com | Plus | ✅ 已导入 | 第二个账号 |
+| A | 932041235@qq.com | Plus | ✅ 已导入 | 号池 Pool-A |
+| B | cheershuyang@163.com | Plus | ✅ 已导入 | 号池 Pool-B |
 | - | 待购买 | Pro ($200/月) | 未来 | 高端模型 o1-pro 等 |
 
 ---
@@ -165,6 +166,7 @@ API Key:      sk-MxTbv9KDEiD4OXTJgZ7pO6RgbmnVmUPs3PCiXpFqfcWsi8OL
 | 3001 | New-API | ✅ 运行中 | ✅ 已放行 |
 | 3002 | chatgpt2api | ✅ 运行中 | ✅ 已放行 |
 | 1455 | AIClient-2-API 服务端口 | ✅ | ✅ 已放行 |
+| 8088 | AI Studio 配图 | ✅ 运行中 | ✅ 已放行 |
 | 8085-8086 | TLS Sidecar | ✅ | ✅ 已放行 |
 | 19876-19880 | AIClient-2-API 数外端口 | ✅ | ✅ 已放行 |
 | ICMP | Ping | ✅ | ✅ 已放行 |
@@ -236,8 +238,22 @@ curl -s -X POST http://localhost:3002/api/accounts \
 3. **IP 风险**: 单 IP 大量请求可能触发 OpenAI 风控，必要时加代理轮换
 4. **备份**: 定期备份 /root/new-api-data 和 /root/chatgpt2api-data
 5. **更新**: chatgpt2api 和 New-API 需定期拉取最新镜像以适配 OpenAI 变化
+8. **AI Studio**: 配图服务限速 6次/5分钟/IP，缓存 5 分钟自动清理
 6. **云防火墙**: 新增端口需同时在腾讯云控制台 + VPS iptables 放行
 7. **Docker 重启**: Docker daemon 重启后可能需手动补 FORWARD 链规则（见第八节）
+
+---
+
+## 七(b)、缓存架构
+
+| 路径 | 缓存机制 | 状态 |
+|------|----------|------|
+| Codex CLI → codex-proxy:8080 → OpenAI | prompt_cache_key + SessionAffinity → 服务端 prompt caching（输入 token 5 折） | ✅ 已内置 |
+| 学员文本 API → New-API:3001 → chatgpt2api:3002 | New-API 内存缓存（相同请求直接返回） | ✅ 已开启 (MEMORY_CACHE_ENABLED=true) |
+| AI Studio 配图 → chatgpt2api:3002 | 生成结果内存缓存 5 分钟 | ✅ 已实现 |
+| chatgpt2api 自身 | 无 prompt caching 支持 | ❌ 已知限制 |
+
+**关键概念**: OpenAI 服务端 Prompt Caching 要求同一会话的请求路由到同一账号（sticky session）且传递 `prompt_cache_key`。codex-proxy 已内置此能力；chatgpt2api 作为网页反代不支持。
 
 ---
 
@@ -253,4 +269,35 @@ iptables -I FORWARD 2 -o docker0 -j DOCKER
 iptables -I FORWARD 2 -o docker0 -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 iptables -I FORWARD 2 -i docker0 ! -o docker0 -j ACCEPT
 iptables -I FORWARD 2 -i docker0 -o docker0 -j ACCEPT
+```
+
+---
+
+## 九、AI Studio 配图工具
+
+### 功能
+- 双号池（Pool-A/B）并行调用 GPT-Image-2，一次生成两张图
+- 智能增强（LLM 润色 prompt）+ 7 种风格预设 + 5 种尺寸
+- 答题解锁（课程老师是？→ 疏锦行），localStorage 持久
+- 速率限制 6 次/5分钟/IP，请求体上限 10KB
+- 图片缓存 5 分钟自动清理
+- 图到图编辑（上传参考图，4MB 限制）
+- 过期提示横幅 + 浏览器缓存治理
+
+### 部署
+```bash
+cd /root/image-gen
+docker build -t image-gen .
+docker run -d --name image-gen --restart unless-stopped \
+  -p 8088:8088 \
+  --add-host=host.docker.internal:host-gateway \
+  image-gen
+```
+
+### 更新
+```bash
+# 本地修改后 SCP 上传
+scp image-gen/* vps:/root/image-gen/
+# VPS 重建
+ssh vps "docker stop image-gen && docker rm image-gen && cd /root/image-gen && docker build -t image-gen . && docker run -d --name image-gen --restart unless-stopped -p 8088:8088 --add-host=host.docker.internal:host-gateway image-gen"
 ```

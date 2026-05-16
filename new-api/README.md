@@ -26,6 +26,7 @@
 docker run --name new-api -d --restart always \
   -p 3001:3000 \
   -e TZ=Asia/Shanghai \
+  -e MEMORY_CACHE_ENABLED=true \
   -v /root/new-api-data:/data \
   calciumion/new-api:latest
 ```
