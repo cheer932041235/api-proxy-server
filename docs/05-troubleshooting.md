@@ -239,6 +239,74 @@ Host vps
 
 ---
 
+### 11. codex-proxy 面板"图像请求 0/N failed"是怎么回事
+
+**现象**：用量统计页签里"图像生成请求"显示 `0 / 671`，全部失败。但你主要用 Codex 写代码，没主动生成过图。
+
+**别紧张**：这是统计口径问题，**不是你的服务在反复出错**。
+
+#### 数据来源（关键理解）
+
+codex-proxy dashboard 上的图像统计**不是它自己处理的请求**，而是它定期从 **OpenAI 账号级 usage API** 拉取的：
+
+```
+codex-proxy dashboard
+    ↑ 拉取
+OpenAI 账号 usage API（返回 image_request_failed_count）
+    ↑ 计数
+该 Plus 账号在 OpenAI 端的所有图像请求（合并统计）
+```
+
+也就是说：**只要这个 Plus 账号被任何客户端（包括 chatgpt2api、ChatGPT 网页、其他第三方工具）发过图像请求，OpenAI 端的计数都会累加，并最终显示在 codex-proxy 面板上。**
+
+#### 为什么计数会飙这么高
+
+如果你部署了本仓库的 `image-gen` 工具，它默认使用 **双 Pool 并发策略**：同一张图同时让 Pool-A 和 Pool-B 两个账号去生成，谁先返回用谁，另一个被取消。
+
+```
+image-gen 收到 1 个出图请求
+   ├─→ Pool-A (账号 A) 调用 /v1/images/edits
+   └─→ Pool-B (账号 B) 调用 /v1/images/edits
+       │
+       ├─ Pool-A 31s 返回成功 ✅ → 用户拿到图
+       └─ Pool-B 36s 返回成功（已被取消） ← OpenAI 端计 1 次失败
+```
+
+**用户视角**：100% 出图成功
+**OpenAI 账号视角**：每张图算 1 次成功 + 1 次"失败"（被取消的那个）
+**codex-proxy 面板视角**：只看到累计的失败数
+
+#### 怎么判断是不是这个原因
+
+1. 看 `chatgpt2api` 容器日志，`/v1/images/edits` 是不是大量 200 OK：
+   ```bash
+   docker logs chatgpt2api --since 24h 2>&1 | grep -c '/v1/images/edits.*200'
+   ```
+2. 看 `image-gen` 容器日志里 `[GEN-Pool-A]` 和 `[GEN-Pool-B]` 是否成对出现（双发模式）：
+   ```bash
+   docker logs image-gen --since 24h 2>&1 | grep -E '\[GEN-Pool-[AB]\]' | tail -20
+   ```
+3. 看 `codex-proxy` 自己的请求路径分布：
+   ```bash
+   docker logs codex-proxy-codex-proxy-1 --since 24h 2>&1 | grep -oE 'POST /v1/[a-z_/]+' | sort | uniq -c
+   ```
+   正常情况只会看到 `POST /v1/responses`，**不会**看到 `POST /v1/images/*`。
+
+如果三项都符合 → 就是双 Pool 并发的"统计副作用"，**忽略即可**。
+
+#### 想消除这个数字怎么办
+
+两个选项，按需选：
+
+| 方案 | 优点 | 代价 |
+|------|------|------|
+| **保留双 Pool 并发（默认）** | 单图最快，用户体验最好 | OpenAI 账号端虚高失败计数 |
+| 改成主备模式（Pool-A 先试，超时再 Pool-B） | 账号端数字干净 | 单图最坏情况慢 30s+ |
+
+**推荐保留默认**：用户拿到图的速度比面板上一个无害的数字重要。
+
+---
+
 ## 日志位置速查
 
 | 日志 | 路径 | 说明 |
