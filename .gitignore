@@ -1,10 +1,40 @@
+# ===== 敏感信息（必须 ignore）=====
 .env
+.env.local
+.env.production
+local.secrets.md
+local-notes/
+*.local.md
+
+# ===== 个人品牌资产（不公开）=====
+homepage/
+homepage-designs/
+
+# ===== 渲染产物（由 .env 渲染生成，不入库）=====
+nginx/rendered/
+nginx/api.*.conf
+!nginx/*.template
+!nginx/*.template.conf
+
+# ===== 通用 =====
 logs/
+*.log
 __pycache__/
 *.pyc
 .venv/
-gateway/secrets.json
-gateway/__pycache__/
-gateway/tests/__pycache__/
-aiclient2api/config.json
-aiclient2api/provider_pools.json
+.pytest_cache/
+node_modules/
+.DS_Store
+Thumbs.db
+
+# ===== 运行数据（不应入库）=====
+data/
+backups/
+*.db
+*.db-journal
+
+# ===== IDE =====
+.vscode/
+.idea/
+*.swp
+

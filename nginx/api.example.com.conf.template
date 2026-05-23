@@ -1,0 +1,101 @@
+# ${DOMAIN} — Reverse proxy for all AI services
+# 使用方式：用 envsubst 渲染本模板：
+#   bash scripts/render-nginx.sh
+# 或手动：
+#   set -a && source .env && set +a
+#   envsubst < nginx/api.example.com.conf.template > nginx/rendered/${DOMAIN}.conf
+
+server {
+    listen 443 ssl http2;
+    server_name ${DOMAIN};
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # 静态资源（首页 + logo）
+    location = / {
+        default_type text/html;
+        alias /var/www/homepage/;
+        try_files /index.html =404;
+    }
+
+    location = /logo.svg {
+        alias /var/www/homepage/logo.svg;
+        add_header Content-Type "image/svg+xml";
+        add_header Cache-Control "public, max-age=86400";
+    }
+
+    location = /bg.svg {
+        alias /var/www/homepage/bg.svg;
+        add_header Content-Type "image/svg+xml";
+        add_header Cache-Control "public, max-age=86400";
+    }
+
+    # New-API 网关（默认入口）
+    location / {
+        proxy_pass http://127.0.0.1:${PORT_NEW_API};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # SSE streaming support
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    # chatgpt2api 管理面板
+    location /gpt2api/ {
+        proxy_pass http://127.0.0.1:${PORT_CHATGPT2API}/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # chatgpt2api Images API（直通，绕过 New-API）
+    location /img/v1/ {
+        proxy_pass http://127.0.0.1:${PORT_CHATGPT2API}/v1/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
+    # Studio 配图工具
+    location /studio/ {
+        proxy_pass http://127.0.0.1:${PORT_IMAGE_GEN}/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        client_max_body_size 10m;
+    }
+
+    # Codex Proxy（API + 日志面板）
+    location /codex/ {
+        proxy_pass http://127.0.0.1:${PORT_CODEX_PROXY}/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # SSE streaming support
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+    }
+}
+
+# HTTP → HTTPS redirect
+server {
+    listen 80;
+    server_name ${DOMAIN};
+    return 301 https://$host$request_uri;
+}

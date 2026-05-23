@@ -3,7 +3,18 @@
 # Cron: 0 9 * * * /usr/local/bin/daily-report.sh >> /var/log/daily-report.log 2>&1
 # Requires: msmtp (lightweight SMTP client)
 
-RECIPIENT="932041235@qq.com"
+# 从 /root/.env 加载（如果存在）
+[ -f /root/.env ] && set -a && . /root/.env && set +a
+
+RECIPIENT="${ALERT_RECIPIENT:-${SMTP_USER:-}}"
+SMTP_FROM="${SMTP_USER:-}"
+VPS_HOST_DISPLAY="${VPS_HOST:-unknown}"
+
+if [ -z "$RECIPIENT" ]; then
+  echo "[$(date)] ALERT_RECIPIENT/SMTP_USER 未设置，跳过日报"
+  exit 0
+fi
+
 DATE_YESTERDAY=$(date -d "yesterday" +%Y-%m-%d 2>/dev/null || date -v-1d +%Y-%m-%d)
 DATE_DISPLAY=$(date -d "yesterday" +"%Y年%m月%d日" 2>/dev/null || date -v-1d +"%Y年%m月%d日")
 
@@ -58,11 +69,11 @@ ${DOCKER_STATUS}
 ${DISK_USAGE}
 
 ========================================
-此邮件由 VPS (170.106.65.175) 自动发送
+此邮件由 VPS (${VPS_HOST_DISPLAY}) 自动发送
 "
 
 # ── Send email via msmtp ──
-echo -e "Subject: =?UTF-8?B?$(echo -n "AI中转站日报 ${DATE_DISPLAY}" | base64 -w0)?=\nFrom: cheershuyang@qq.com\nTo: ${RECIPIENT}\nContent-Type: text/plain; charset=UTF-8\n\n${BODY}" | \
+echo -e "Subject: =?UTF-8?B?$(echo -n "AI中转站日报 ${DATE_DISPLAY}" | base64 -w0)?=\nFrom: ${SMTP_FROM}\nTo: ${RECIPIENT}\nContent-Type: text/plain; charset=UTF-8\n\n${BODY}" | \
   msmtp "${RECIPIENT}" 2>&1
 
 if [ $? -eq 0 ]; then
