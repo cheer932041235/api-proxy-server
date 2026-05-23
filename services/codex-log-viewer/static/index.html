@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Codex Proxy — 调用日志</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --red: #f85149; --yellow: #d29922; --orange: #db6d28;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, 'Segoe UI', sans-serif; background:var(--bg); color:var(--text); }
+  .container { max-width:1200px; margin:0 auto; padding:20px; }
+  h1 { font-size:1.5rem; margin-bottom:8px; }
+  h1 span { color:var(--accent); }
+  .subtitle { color:var(--text2); font-size:.85rem; margin-bottom:20px; }
+
+  /* Stats cards */
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:20px; }
+  .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:16px; }
+  .stat-card .label { color:var(--text2); font-size:.75rem; text-transform:uppercase; letter-spacing:.05em; }
+  .stat-card .value { font-size:1.8rem; font-weight:700; margin-top:4px; }
+  .stat-card .value.green { color:var(--green); }
+
+  /* Controls */
+  .controls { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; align-items:center; }
+  .controls input, .controls select {
+    background:var(--surface); border:1px solid var(--border); color:var(--text);
+    padding:8px 12px; border-radius:6px; font-size:.85rem;
+  }
+  .controls input:focus, .controls select:focus { border-color:var(--accent); outline:none; }
+  .btn { background:var(--accent); color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:.85rem; }
+  .btn:hover { opacity:.9; }
+  .auto-label { color:var(--text2); font-size:.8rem; display:flex; align-items:center; gap:4px; }
+
+  /* Table */
+  .log-table { width:100%; border-collapse:collapse; font-size:.82rem; }
+  .log-table th { background:var(--surface); color:var(--text2); font-weight:600; text-align:left;
+    padding:10px 12px; border-bottom:1px solid var(--border); position:sticky; top:0; }
+  .log-table td { padding:8px 12px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  .log-table tr:hover td { background:rgba(88,166,255,.06); }
+  .status-2 { color:var(--green); font-weight:600; }
+  .status-4 { color:var(--yellow); font-weight:600; }
+  .status-5 { color:var(--red); font-weight:600; }
+  .model-tag { background:rgba(88,166,255,.15); color:var(--accent); padding:2px 8px; border-radius:4px; font-size:.78rem; }
+  .method { font-weight:600; }
+  .method-POST { color:var(--green); }
+  .method-GET { color:var(--accent); }
+  .time-fast { color:var(--green); }
+  .time-mid { color:var(--yellow); }
+  .time-slow { color:var(--red); }
+  .empty { text-align:center; padding:40px; color:var(--text2); }
+
+  /* Model breakdown */
+  .model-bar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+  .model-chip { background:var(--surface); border:1px solid var(--border); padding:4px 10px;
+    border-radius:12px; font-size:.78rem; color:var(--text2); }
+  .model-chip b { color:var(--text); margin-left:4px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Codex Proxy <span>调用日志</span></h1>
+  <p class="subtitle">https://api.shujinxing777.com/codex/v1 — Nginx access log real-time viewer</p>
+
+  <div class="stats" id="stats">
+    <div class="stat-card"><div class="label">总请求</div><div class="value" id="st-total">—</div></div>
+    <div class="stat-card"><div class="label">平均响应</div><div class="value green" id="st-avg">—</div></div>
+    <div class="stat-card"><div class="label">成功率</div><div class="value green" id="st-success">—</div></div>
+    <div class="stat-card"><div class="label">模型数</div><div class="value" id="st-models">—</div></div>
+  </div>
+
+  <div class="model-bar" id="modelBar"></div>
+
+  <div class="controls">
+    <input type="text" id="filterModel" placeholder="过滤模型..." style="width:160px">
+    <input type="text" id="filterPath" placeholder="过滤路径..." style="width:160px">
+    <select id="filterStatus">
+      <option value="">全部状态</option>
+      <option value="2">2xx</option>
+      <option value="4">4xx</option>
+      <option value="5">5xx</option>
+    </select>
+    <button class="btn" onclick="loadLogs()">刷新</button>
+    <label class="auto-label">
+      <input type="checkbox" id="autoRefresh" checked> 自动刷新 (5s)
+    </label>
+  </div>
+
+  <table class="log-table">
+    <thead>
+      <tr>
+        <th>时间</th>
+        <th>方法</th>
+        <th>路径</th>
+        <th>模型</th>
+        <th>状态</th>
+        <th>耗时</th>
+        <th>大小</th>
+        <th>来源 IP</th>
+      </tr>
+    </thead>
+    <tbody id="logBody">
+      <tr><td colspan="8" class="empty">加载中...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+const TOKEN = new URLSearchParams(location.search).get('token') || 'pwd';
+const API = (location.pathname.replace(/\/+$/, '')) + '/api';
+let autoTimer = null;
+
+function headers() { return { 'Authorization': 'Bearer ' + TOKEN }; }
+
+function fmtTime(s) {
+  if (!s || s === '-') return '-';
+  const t = parseFloat(s);
+  if (t < 1) return `${(t*1000).toFixed(0)}ms`;
+  return `${t.toFixed(1)}s`;
+}
+
+function timeClass(s) {
+  const t = parseFloat(s || 0);
+  if (t < 2) return 'time-fast';
+  if (t < 10) return 'time-mid';
+  return 'time-slow';
+}
+
+function fmtBytes(b) {
+  const n = parseInt(b || 0);
+  if (n < 1024) return n + 'B';
+  if (n < 1048576) return (n/1024).toFixed(1) + 'K';
+  return (n/1048576).toFixed(1) + 'M';
+}
+
+function fmtTs(ts) {
+  if (!ts) return '-';
+  // nginx log_format uses ISO or epoch
+  try {
+    const d = new Date(ts);
+    if (isNaN(d)) return ts;
+    return d.toLocaleString('zh-CN', { hour12: false, month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  } catch { return ts; }
+}
+
+async function loadLogs() {
+  try {
+    const [logsRes, statsRes] = await Promise.all([
+      fetch(API + '/logs?n=200&token=' + TOKEN),
+      fetch(API + '/stats?token=' + TOKEN)
+    ]);
+    const logs = await logsRes.json();
+    const stats = await statsRes.json();
+
+    // Stats
+    document.getElementById('st-total').textContent = stats.total_requests || 0;
+    document.getElementById('st-avg').textContent = (stats.avg_response_time || 0) + 's';
+    const s2 = stats.statuses?.['200'] || 0;
+    const pct = stats.total_requests ? Math.round(s2 / stats.total_requests * 100) : 0;
+    document.getElementById('st-success').textContent = pct + '%';
+    const modelKeys = Object.keys(stats.models || {}).filter(m => m !== '-');
+    document.getElementById('st-models').textContent = modelKeys.length;
+
+    // Model chips
+    const bar = document.getElementById('modelBar');
+    bar.innerHTML = Object.entries(stats.models || {})
+      .filter(([m]) => m !== '-')
+      .sort((a,b) => b[1]-a[1])
+      .map(([m,c]) => `<span class="model-chip">${m}<b>${c}</b></span>`)
+      .join('');
+
+    // Filters
+    const fm = document.getElementById('filterModel').value.toLowerCase();
+    const fp = document.getElementById('filterPath').value.toLowerCase();
+    const fs = document.getElementById('filterStatus').value;
+
+    const filtered = logs.filter(e => {
+      if (fm && !(e.model||'').toLowerCase().includes(fm)) return false;
+      if (fp && !(e.uri||'').toLowerCase().includes(fp)) return false;
+      if (fs && !String(e.status||'').startsWith(fs)) return false;
+      return true;
+    }).reverse(); // newest first
+
+    const tbody = document.getElementById('logBody');
+    if (!filtered.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">暂无日志</td></tr>';
+      return;
+    }
+    tbody.innerHTML = filtered.map(e => {
+      const sc = String(e.status||'-').charAt(0);
+      return `<tr>
+        <td>${fmtTs(e.time_iso8601 || e.time_local)}</td>
+        <td class="method method-${e.method||''}">${e.method||'-'}</td>
+        <td>${e.uri||'-'}</td>
+        <td>${e.model && e.model!=='-' ? '<span class="model-tag">'+e.model+'</span>' : '-'}</td>
+        <td class="status-${sc}">${e.status||'-'}</td>
+        <td class="${timeClass(e.request_time)}">${fmtTime(e.request_time)}</td>
+        <td>${fmtBytes(e.bytes_sent)}</td>
+        <td>${e.remote_addr||'-'}</td>
+      </tr>`;
+    }).join('');
+  } catch(err) {
+    document.getElementById('logBody').innerHTML =
+      `<tr><td colspan="8" class="empty">加载失败: ${err.message}</td></tr>`;
+  }
+}
+
+function toggleAutoRefresh() {
+  if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+  if (document.getElementById('autoRefresh').checked) {
+    autoTimer = setInterval(loadLogs, 5000);
+  }
+}
+
+document.getElementById('autoRefresh').addEventListener('change', toggleAutoRefresh);
+loadLogs();
+toggleAutoRefresh();
+</script>
+</body>
+</html>
