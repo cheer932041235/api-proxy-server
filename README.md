@@ -121,23 +121,47 @@ make status                           # 查状态
 
 ```
 api-proxy-server/
-├── README.md / LICENSE / Makefile
-├── .env.example              ← 环境变量模板（.env 由你创建，已 gitignore）
-├── docs/                     ← 架构 / 运维 / 续期 / 故障 / 调优
-├── services/                 ← 各服务文档与源码
-│   ├── codex-proxy/          ← Codex CLI 反代（用上游公开镜像）
-│   ├── chatgpt2api/          ← ChatGPT Plus 反代（用上游公开镜像）
-│   ├── new-api/              ← API 网关（用上游公开镜像）
-│   ├── image-gen/            ← 配图工具（自建源码）
-│   └── codex-log-viewer/     ← 日志面板（自建源码）
+├── README.md                          ← 本文件
+├── LICENSE                            ← MIT
+├── Makefile                           ← 顶层入口（make help/setup/deploy/...）
+├── PLAN.md                            ← 项目资产清单 + 路线图
+├── TODO.md                            ← 待办与变更日志
+├── .env.example                       ← 环境变量模板（.env 由你创建，已 gitignore）
+├── .gitignore                         ← 保护 .env / local.secrets.md / homepage 等
+│
+├── docs/                              ← 完整文档
+│   ├── 00-quickstart.md               ← ★ 30 分钟跑通指南
+│   ├── 01-architecture.md             ← 架构 + 数据流 + 端口表
+│   ├── 02-services.md                 ← 每服务详情
+│   ├── 03-operations.md               ← 日常运维
+│   ├── 04-token-renewal.md            ← Token 续期 SOP
+│   ├── 05-troubleshooting.md          ← 故障速查
+│   └── 06-network-tuning.md           ← 链路稳定性调优
+│
+├── services/                          ← 各服务文档与源码
+│   ├── codex-proxy/                   ← Codex CLI 反代（用上游公开镜像，仅 README）
+│   ├── chatgpt2api/                   ← ChatGPT Plus 反代（用上游公开镜像，仅 README）
+│   ├── new-api/                       ← API 网关（用上游公开镜像，仅 README）
+│   ├── image-gen/                     ← 配图工具（自建源码 + Dockerfile）
+│   └── codex-log-viewer/              ← 日志面板（自建源码 + systemd unit）
+│
 ├── nginx/
-│   ├── api.example.com.conf.template   ← Nginx 模板（用 envsubst 渲染）
-│   └── rendered/                       ← 渲染产物（gitignore）
-└── scripts/                  ← 部署 / 运维 / 健康检查
-    ├── setup.sh / deploy.sh / render-nginx.sh
-    ├── daily-backup.sh / daily-report.sh
-    ├── proxy-health-check.py
-    └── ...
+│   ├── api.example.com.conf.template  ← Nginx 模板（用 envsubst 渲染）
+│   └── rendered/                      ← 渲染产物（gitignore）
+│
+└── scripts/
+    ├── README.md                      ← 脚本目录总览
+    ├── setup.sh                       ← 首次安装（VPS 准备 + SSL + cron）
+    ├── deploy.sh                      ← 部署/重建 Docker 容器
+    ├── render-nginx.sh                ← 渲染 nginx 配置
+    ├── daily-backup.sh                ← 每日备份（cron）
+    ├── daily-report.sh                ← 每日邮件报告（cron）
+    ├── proxy-health-check.py          ← 账号健康检查 + 告警邮件
+    ├── dedup-accounts.py              ← chatgpt2api 号池去重
+    ├── fix-docker-iptables.sh         ← Docker iptables 修复
+    ├── fix-docker-iptables.service    ← 上述脚本的 systemd unit
+    ├── codex-log-sync/                ← Codex 日志同步到 New-API SQLite
+    └── sanitize.ps1                   ← 敏感词批量脱敏工具（一次性，保留备用）
 ```
 
 ## 上游开源项目致谢
