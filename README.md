@@ -2,7 +2,7 @@
 
 > **自建 AI API 中转站** — 一台海外 VPS + ChatGPT Plus，搭一个属于自己的 OpenAI 反代 + 网关。
 >
-> ¥50/月 VPS + $20/月 Plus，做完后 Codex CLI / OpenCode / Cherry Studio / Cursor 全能用。
+> ¥99/年 VPS + ¥100/月每个 Plus 账号（按需 N 个），做完后 Codex CLI / OpenCode / Cherry Studio / Cursor 全能用。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -18,8 +18,8 @@
 
 | | 自建 | 买中转站 |
 |---|---|---|
-| 成本 | ¥50 VPS + $20 Plus = 约 ¥190/月 | $20-100/月起，按量计费 |
-| Token 单价 | 几乎零（Plus 套餐内） | 商业溢价 |
+| 固定成本 | VPS ¥99/年 + Plus ¥100/月×N 个 | $20-100/月起 |
+| Token 单价 | 几乎零（Plus 套餐内，按账号数线性扩容） | 按量计费，商业溢价 |
 | Prompt Caching | ✅ 支持（codex-proxy 内置） | 多数中转站不支持 Responses API |
 | 数据隐私 | 自己机器，自己 log | 经过第三方 |
 | 可控性 | 完全可控 + 可定制 | 取决于服务商 |
@@ -55,10 +55,21 @@
 
 ### 你需要什么
 
-- 一台**海外 VPS**（推荐 2C4G，Ubuntu 22.04+，¥50/月级别）
-- 一个**域名**（解析到 VPS）
-- 至少 **1 个 ChatGPT Plus** 账号
+- 一台**海外 VPS**（推荐 2C4G、Ubuntu 22.04+，¥99/年起）
+- 一个**域名**（解析到 VPS，约 ¥60/年）
+- **N 个 ChatGPT Plus 账号**（每个 ¥100/月，按使用强度决定数量）
 - 本机 Linux/macOS/WSL（Windows 用 Git Bash 也行）
+
+**Plus 账号数量怎么估？**
+
+| 场景 | 推荐账号数 | 说明 |
+|------|-----------|------|
+| 个人自用（IDE 编码、问答） | 1 个 | 一般够用 |
+| 1-3 人小组共用 | 2 个 | 号池轮询，单号被限流时切换 |
+| 多人团队 / 学员共用 | 3-5 个 | 并发高、出图多需要更多冗余 |
+| 重度使用（持续脚本/批量） | 5+ 个 | 避免单号触发风控 |
+
+> 单 Plus 账号触发限流时，整个号池会自动切换到下一个账号；账号越多稳定性越高。
 
 ### 一键部署
 
