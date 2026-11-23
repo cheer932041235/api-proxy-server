@@ -387,7 +387,8 @@ Rules:
         parsed = urlparse(self.path)
         params = parse_qs(parsed.query)
         key = params.get('key', [''])[0]
-        if key != 'shujinxing777':
+        expected_key = os.environ.get("IMAGE_GEN_LOG_KEY", "")
+        if not expected_key or key != expected_key:
             self._json_response(403, {"error": "Invalid key. Use /api/logs?key=<YOUR_LOG_TOKEN>"})
             return
         n = int(params.get('n', ['50'])[0])

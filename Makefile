@@ -104,7 +104,7 @@ ssh:
 # ─── 安全检查 ─────────────────────────────────
 check-secrets:
 	@echo "扫描可能的敏感词..."
-	@! grep -rEn '170\.106\.|shujinxing777|932041235|cheershuyang|Proxy2026|sk-MxTbv9|sk-gpt2api-secret|疏锦行' \
+	@! grep -rEn 'gh[pousr]_[[:alnum:]]{20,}|github_pat_[[:alnum:]_]{20,}|sk-[[:alnum:]_-]{24,}|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY' \
 	  --include='*.md' --include='*.sh' --include='*.py' --include='*.template' \
 	  --exclude='local.secrets.md' --exclude='LICENSE' \
 	  . 2>/dev/null || (echo "❌ 发现敏感词残留，请清理后再提交" && exit 1)

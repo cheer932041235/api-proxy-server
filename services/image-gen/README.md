@@ -50,3 +50,9 @@ ssh vps "docker stop image-gen && docker rm image-gen && \
 
 - 后端调用 `host.docker.internal:3002`（chatgpt2api）的 Images API
 - chatgpt2api token 过期会导致出图失败
+
+## 日志访问配置
+
+日志接口 `/api/logs` 从环境变量 `IMAGE_GEN_LOG_KEY` 读取访问口令，未配置时拒绝访问。
+
+启动容器前，在服务器上设置自己的口令，并在 `docker run` 参数中加入 `-e IMAGE_GEN_LOG_KEY` 将它传入容器。请求使用 `/api/logs?key=<配置的口令>`。口令只保存在自己的部署环境中。

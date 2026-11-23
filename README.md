@@ -161,7 +161,6 @@ api-proxy-server/
     ├── fix-docker-iptables.sh         ← Docker iptables 修复
     ├── fix-docker-iptables.service    ← 上述脚本的 systemd unit
     ├── codex-log-sync/                ← Codex 日志同步到 New-API SQLite
-    └── sanitize.ps1                   ← 敏感词批量脱敏工具（一次性，保留备用）
 ```
 
 ## 上游开源项目致谢
